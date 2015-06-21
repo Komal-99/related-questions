@@ -11,9 +11,8 @@ import java.util.HashMap;
  * - This implementation doesn't check for cycles. Problem statement assumes tree
  * 
  * Optimizations for R3 run time:
- * - can #iterations be reduced based on depth of tree?
- * - change graph storage (edge based?), reduce small object overhead, 
- *   reduce HashMap lookups ...
+ * - can #iterations be reduced based on depth of tree? stop when no-change?
+ * - change graph storage? reduce HashMap lookup? reduce small object overhead? 
  *  
  * Optimizations for depth-bounded DFS: 
  * - BFS? bounded BFS? to avoid stack overflow for long graphs?
@@ -21,10 +20,10 @@ import java.util.HashMap;
  * @author smram
  */
 public class RelatedQuestions {
-  // assumption: cost=time in problem statement, legitimate value of cost is >0
-	final static double INVALID_COST = -1.0d; 
 	
 	static class Vertex {
+	  // assumption: cost=time in problem statement, legitimate value of cost is >0
+		final static double INVALID_COST = -1.0d; 
 		
 		final int id;
 		final int value;
@@ -111,7 +110,7 @@ public class RelatedQuestions {
 				{
 					// if cost of visiting this child exceeds minExpCost, we can skip this 
 					// root as too expensive, no need to check more of its children
-					return INVALID_COST;
+					return Vertex.INVALID_COST;
 				}
 				
 				neighborExpCost += childExpCost;
