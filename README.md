@@ -40,7 +40,7 @@ Sample Output
 
 ## Solutions
 This repo contains two solutions:
-(a) Depth-limited DFS search: performs a DFS search rooted at every vertex to compute the expected cost if starting at that vertex. Prunes the search space by limiting the depth of the current DFS run if the current cost exceeds the minimum cost seen so far. from previo.
-(b) Iterative update solution: that iteratively updates the incoming and outgoing cost per "question" (vertex) until all vertices have been updated.
+* Depth-limited DFS search: performs a DFS search rooted at every vertex to compute the expected cost if starting at that vertex. Prunes the search space by limiting the depth of the current DFS run if the current cost exceeds the minimum cost seen so far. from previo.
+* Iterative update solution: that iteratively updates the incoming and outgoing cost per "question" (vertex) until all vertices have been updated.
 
 The code does *not* currently accept the input/output formats described below, so you cannot submit it to the Quora challenges website.
