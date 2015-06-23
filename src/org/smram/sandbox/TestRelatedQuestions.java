@@ -1,12 +1,16 @@
 package org.smram.sandbox;
 
 import java.util.ArrayList;
+import java.util.Date;
 
 import org.smram.sandbox.RelatedQuestions.IUVertex;
 import org.smram.sandbox.RelatedQuestions.Vertex;
+import org.smram.utils.Logger;
+import org.smram.utils.Logger.LogLevel;
 
 public class TestRelatedQuestions {
-
+	Logger LOG = new Logger(LogLevel.INFO);
+	
 	/**
 	 * Class to store some extra test-only info e.g. the correct answer per vertex
 	 * @author smram
@@ -39,7 +43,8 @@ public class TestRelatedQuestions {
 	 * @param vertexStartId
 	 * @return a simple 5 node graph
 	 */
-	private static ArrayList<IUVertex> createTestGraph_g5(int vertexStartId)
+	private static ArrayList<IUVertex> createTestGraph_g5(int vertexStartId, 
+			boolean printTrueCost)
 	{
 		// test: simple graphs
 		TestVertex v1 = new TestVertex(vertexStartId++, 30);
@@ -67,11 +72,12 @@ public class TestRelatedQuestions {
 		v3.setTrueMinCost(v3.value + (v5.value + (v1.value + (v2.value + v4.value)/2.0))/2.0);
 		v4.setTrueMinCost(v4.value + (v1.value + (v2.value + (v3.value + v5.value))/2.0)/1.0);
 		v5.setTrueMinCost(v5.value + (v3.value + (v1.value + (v2.value + v4.value)/2.0))/1.0);		
-		ArrayList<TestVertex> testVertexList = new ArrayList<TestVertex>();
-		for (Vertex v : vList)
-			testVertexList.add((TestVertex) v); // yuck - cast, but we know what we're doing
-		TestVertex.printTrueMinCost(testVertexList);
-
+		if (printTrueCost) {
+			ArrayList<TestVertex> testVertexList = new ArrayList<TestVertex>();
+			for (Vertex v : vList)
+				testVertexList.add((TestVertex) v); // yuck - cast, but we know what we're doing
+			TestVertex.printTrueMinCost(testVertexList);
+		}
 		return vList;
 	}
 
@@ -79,7 +85,8 @@ public class TestRelatedQuestions {
 	 * @param startId
 	 * @return simple 3 node graph
 	 */
-	private static ArrayList<IUVertex> createTestGraph_g3(int startId)
+	private static ArrayList<IUVertex> createTestGraph_g3(int startId, 
+			boolean printTrueCost)
 	{
 		// test: simple graphs
 		TestVertex v1 = new TestVertex(startId++, 30);
@@ -100,43 +107,63 @@ public class TestRelatedQuestions {
 		v1.setTrueMinCost(v1.value + (v2.value + v3.value)/2.0);
 		v2.setTrueMinCost(v2.value + (v1.value/1.0 + (v3.value/1.0)));
 		v3.setTrueMinCost(v3.value + (v1.value/1.0 + (v2.value/1.0)));
-		ArrayList<TestVertex> testVertexList = new ArrayList<TestVertex>();
-		for (Vertex v : vList)
-			testVertexList.add((TestVertex) v); // yuck - cast, but we know what we're doing
-		TestVertex.printTrueMinCost(testVertexList);
-		
+		if (printTrueCost) {
+			ArrayList<TestVertex> testVertexList = new ArrayList<TestVertex>();
+			for (Vertex v : vList)
+				testVertexList.add((TestVertex) v); // yuck - cast, but we know what we're doing
+			TestVertex.printTrueMinCost(testVertexList);
+		}
 		return vList;
 	}
 
 	private static void runDFS(ArrayList<IUVertex> vList) {
-			System.out.println("Test: DFS + noPrune");
-			RelatedQuestions.runDFS(vList, false);
-			
-			System.out.println("Test: DFS + prune");
-			RelatedQuestions.runDFS(vList, true);
+		long startTime = System.currentTimeMillis();
+		
+		Vertex minVertex = RelatedQuestions.runDFS(vList, false);
+		
+		System.out.println(String.format("DFS + noPrune: MinExpCost=%.2f, Vertex=%d, time=%d",
+				minVertex.expCost, minVertex.id, (System.currentTimeMillis() - startTime)));
 	}
 	
 	private static void runIterativeUpdate(ArrayList<IUVertex> vList) {
-		System.out.println("Test: IU");
-		RelatedQuestions.runIterativeUpdate(vList);
+		long startTime = System.currentTimeMillis();
+		System.out.println("Start:" + new Date(startTime));
+		
+		Vertex minVertex = RelatedQuestions.runIterativeUpdate(vList);
+		
+		System.out.println(String.format("IU: MinExpCost=%.2f, Vertex=%d, time=%d",
+				minVertex.expCost, minVertex.id, (System.currentTimeMillis() - startTime)));
+	}
+	
+	private static void testEmptyGraph() {
+		try {
+			RelatedQuestions.runDFS(new ArrayList<IUVertex>(), false);
+		} catch (IllegalArgumentException e) {
+			System.out.println("DFS + noPrune: test empty graph: PASSED");
+		}
+
+		try {
+			RelatedQuestions.runIterativeUpdate(new ArrayList<IUVertex>());
+		} catch (IllegalArgumentException e) {
+			System.out.println("IU: test empty graph: PASSED");
+		}
 	}
 	
 	public static void main(String[] args) {
 		///////////////////////////////////////////////////////////////////////////
 		// test: empty graph
-		RelatedQuestions.runDFS(new ArrayList<IUVertex>(), false);
-		RelatedQuestions.runDFS(new ArrayList<IUVertex>(), true);
+		testEmptyGraph(); 
 		
 		///////////////////////////////////////////////////////////////////////////
 		// test: 3 node chain
-		final ArrayList<IUVertex> g3 = createTestGraph_g3(1);
+		final ArrayList<IUVertex> g3 = createTestGraph_g3(1, true);
 		runDFS(g3);
 		runIterativeUpdate(g3);
 
 		///////////////////////////////////////////////////////////////////////////
 		// test: 5 node simple
 		int startId = 1;
-		final ArrayList<IUVertex> g5 = createTestGraph_g5(startId);
+		final ArrayList<IUVertex> g5 = createTestGraph_g5(startId, true);
 		runDFS(g5);
 		runIterativeUpdate(g5);
 		
@@ -149,7 +176,7 @@ public class TestRelatedQuestions {
 		for (int i =0; i < numGraphsToChain-1; i++) {
 			startId += gPrev.size();
 			// create a new graph
-			ArrayList<IUVertex> gNext = createTestGraph_g5(startId);
+			ArrayList<IUVertex> gNext = createTestGraph_g5(startId, false);
 			// link it to gPrev
 			Vertex.addUndirectedEdge(gPrev.get(0), gNext.get(0));
 			gChain.addAll(gNext);
@@ -159,22 +186,25 @@ public class TestRelatedQuestions {
 		runDFS(gChain);
 		runIterativeUpdate(gChain);
 		
-		// PERF RESULTS: 
+		// PERF RESULTS: IU=Iterative Update is best
 		// #vertices=50000 (numGraphsToChain=10000), 
-		// - DFS + prune: stackoverflow error
-		// - R3: still running 5+ min
-		
+		// - IU + noEarlyStop: still running 5+ min
+		// - DFS + noPrune: stackoverflow error
+		// - IU: MinExpCost=73.33, Vertex=3, time=465
+
 		// Test: #vertices=25000 (numGraphsToChain=5000)
-		// - DFS + prune: minCost = 73.33333333333333 from vertex = 3, time = 38105
-		// - IU: still running 4+ min
-		
+		// - IU + noEarlyStop: still running 4+ min
+		// - DFS + noPrune: MinExpCost=65.00, Vertex=3, time=118409
+		// - IU: MinExpCost=73.33, Vertex=3, time=288
+				
 		// Test: #vertices=12500 (numGraphsToChain=2500)
-		// - DFS + prune: minCost = 73.33333333333333 from vertex = 3, time = 8398
-		// - IU: mincost = 73.33333333333333 from vertex=3, time=81896
+		// - IU + noEarlyStop: MinExpCost=65.00, Vertex=3, time=81896
+		// - DFS + noPrune: MinExpCost=65.00, Vertex=3, time=20211
+		// - IU: MinExpCost=73.33, Vertex=3, time=155
 		
 		// Test: #vertices=2750 (numgraphsToChain=550)
-		// - DFS + noPrune: minCost = 73.33333333333333 from vertex = 3, time = 523
-		// - DFS + prune:   minCost = 73.33333333333333 from vertex = 3, time = 289
-		// - IU: mincost = 73.33333333333333 from vertex=3, time=1569
+		// - IU + noEarlyStop: MinExpCost=65.00, Vertex=3, time=1569
+		// - DFS + noPrune: MinExpCost=65.00, Vertex=3, time=679
+		// - IU: MinExpCost=73.33, Vertex=3, time=66
 	}
 }
