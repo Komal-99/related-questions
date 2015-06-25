@@ -119,7 +119,7 @@ public class TestRelatedQuestions {
 	private static void runDFS(ArrayList<IUVertex> vList) {
 		long startTime = System.currentTimeMillis();
 		
-		Vertex minVertex = RelatedQuestions.runDFS(vList, false);
+		Vertex minVertex = RelatedQuestions.runDFS(vList);
 		
 		System.out.println(String.format("DFS + noPrune: MinExpCost=%.2f, Vertex=%d, time=%d",
 				minVertex.expCost, minVertex.id, (System.currentTimeMillis() - startTime)));
@@ -137,7 +137,7 @@ public class TestRelatedQuestions {
 	
 	private static void testEmptyGraph() {
 		try {
-			RelatedQuestions.runDFS(new ArrayList<IUVertex>(), false);
+			RelatedQuestions.runDFS(new ArrayList<IUVertex>());
 		} catch (IllegalArgumentException e) {
 			System.out.println("DFS + noPrune: test empty graph: PASSED");
 		}
@@ -182,7 +182,8 @@ public class TestRelatedQuestions {
 			gChain.addAll(gNext);
 			gPrev = gNext; // move on
 		}
-		System.out.println("Test: #vertices=" + gChain.size());
+
+		System.out.println("\nTest: #vertices=" + gChain.size());
 		runDFS(gChain);
 		runIterativeUpdate(gChain);
 		
@@ -204,7 +205,7 @@ public class TestRelatedQuestions {
 		
 		// Test: #vertices=2750 (numgraphsToChain=550)
 		// - IU + noEarlyStop: MinExpCost=65.00, Vertex=3, time=1569
-		// - DFS + noPrune: MinExpCost=65.00, Vertex=3, time=679
+		// - DFS + noPrune: MinExpCost=65.00, Vertex=3, time=598
 		// - IU: MinExpCost=73.33, Vertex=3, time=66
 	}
 }

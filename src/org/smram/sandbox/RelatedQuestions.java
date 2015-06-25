@@ -12,14 +12,7 @@ import org.smram.utils.Logger.LogLevel;
  * Problem specification: {@link http://www.quora.com/challenges#related_questions}
  * 
  * Caveats:
- * - This implementation doesn't check for cycles. Problem statement assumes tree
- * 
- * Optimizations for R3 run time:
- * - can #iterations be reduced based on depth of tree? stop when no-change?
- * - change graph storage? reduce HashMap lookup? reduce small object overhead? 
- *  
- * Optimizations for depth-bounded DFS: 
- * - BFS? bounded BFS? to avoid stack overflow for long graphs?
+ * This implementation doesn't check for cycles. Problem statement assumes tree
  * 
  * @author smram
  */
@@ -27,8 +20,6 @@ public class RelatedQuestions {
 	static Logger LOG = new Logger(LogLevel.INFO);
 	
 	static class Vertex {
-	  // assumption: cost=time in problem statement, legitimate costs are >0
-		final static double INVALID_COST = -1.0d; 
 		
 		final int id;
 		final int value;
@@ -46,10 +37,6 @@ public class RelatedQuestions {
 		static void addUndirectedEdge(Vertex v1, Vertex v2) {
 			v1.addEdge(v2);
 			v2.addEdge(v1);
-		}
-		
-		static boolean isInvalidCost(double c) {
-			return (c < 0); // check < to avoid checking == on a double	
 		}
 		
 		int getNumNeighbors() {
@@ -87,14 +74,14 @@ public class RelatedQuestions {
 		}
 	}
 	
+	////////////////////////////////// DFS /////////////////////////////////////
 	/**
-	 * TODO make this tail recursive if possible
 	 * @param root
 	 * @return expected cost of visiting all nodes in tree starting at root. 
 	 * expected cost = cost of visiting a neighbor * P(visiting neighbor)
-	 * P(visiting neighbor) = 1/#neighbors
+	 * P(visiting neighbor of vertex i) = 1/(number of neighbors of vertex i)
 	 */
-	static double dfs(Vertex root, final double minExpCost) {
+	static double dfs(Vertex root) {
 		// pre-compute #unvisited children. Extra O(E) but helps pruning
 		// alternately, i could store a state in Vertex as its neighbors are visited
 		final int numChildToVisit = root.getNumUnvisitedNeighbors(); 
@@ -110,18 +97,7 @@ public class RelatedQuestions {
 		
 		for (Vertex child : root.adj) { // for every unvisited child	
 			if (!child.visited) { 
-				double childExpCost = dfs(child, minExpCost);
-				if (Vertex.isInvalidCost(childExpCost) || 
-						// this pruning is incorrect: even if at this current root cost > min,
-						// this cost will be divided at this root's parent by parent.#unvisited
-						// which may be < min. So I cannot prune this current root!
-						root.computeExpCost(neighborExpCost + childExpCost, numChildToVisit) > minExpCost)
-				{
-					// if cost of visiting this child exceeds minExpCost, we can skip this 
-					// root as too expensive, no need to check more of its children
-					return Vertex.INVALID_COST;
-				}
-				
+				double childExpCost = dfs(child);
 				neighborExpCost += childExpCost;
 			}
 		}
@@ -131,39 +107,32 @@ public class RelatedQuestions {
 	
 	/**
 	 * Runs a DFS at each vertex in the graph to compute the 
-	 * expected cost of starting at that vertex. Returns the vertex with minimum
-	 * expected cost.
+	 * expected cost of starting at that vertex. 
 	 * 
-	 * TODO: make this tail-recursive if possible
 	 * @param vList
-	 * @param doPrune
+	 * @return Vertex with minimum expected cost
 	 */
-	static Vertex runDFS(ArrayList<IUVertex> vList, boolean doPrune) {
+	static Vertex runDFS(ArrayList<IUVertex> vList) {
 		if (vList.isEmpty())
 			throw new IllegalArgumentException("Graph is empty");
 		
 		Vertex minVertex = vList.get(0); // init to some vertex
-		double minExpCost = Double.MAX_VALUE;
+		minVertex.expCost = Double.MAX_VALUE;
 		for(Vertex vertex : vList) {
 
 			for (Vertex allv : vList) // mark whole graph as !visited
 				allv.visited = false;
 			
-			double expCost = dfs(vertex, doPrune ? minExpCost : Double.MAX_VALUE);
-			if (expCost < minExpCost) {
-				if (!Vertex.isInvalidCost(expCost)) {
-					minExpCost = expCost;
-					minVertex = vertex;
-				} else {
-					if (LOG.isDebugEnabled())
-						LOG.debug("Early stop for vertex=" + vertex.id);
-				}
-			}
+			vertex.expCost = dfs(vertex);
+			if (vertex.expCost < minVertex.expCost)
+				minVertex = vertex;
 		}
 		
 		return minVertex;
 	}
 	
+
+	/////////////////////// ITERATIVE UPDATE ////////////////////////////////////
 	/**
 	 * Vertex with extra information for the iterative update algorithm 
 	 * {@link RelatedQuestions#runIterativeUpdate(ArrayList)}
@@ -200,152 +169,24 @@ public class RelatedQuestions {
 		}
 	}
 	
-	/*static class Edge {
-		final IUVertex left;
-		final IUVertex right;
-		double l2r;
-		double r2l;
-		
-		Edge(IUVertex left, IUVertex right, double l2r, double r2l) {
-			this.left = left;
-			this.right = right;
-			this.l2r = l2r;
-			this.r2l = r2l;
-		}
-		
-		enum Node { LEFT, RIGHT;
-			Node getOpposite() {
-				return (this == LEFT) ? RIGHT : LEFT;
-			}
-		};
-		
-		IUVertex getNode(Node w) {
-			return (w == Node.LEFT) ? left : right;
-		}
-		
-		double getOutCost(Node w) {
-			return (w == Node.LEFT) ? l2r : r2l;
-		}
-		
-		void setOutCost(Node w, double cost) {
-			if (w == Node.LEFT)
-				l2r = cost;
-			else
-				r2l = cost;
-		}
-	}
-	
-	static class Graph {
-		ArrayList<Edge> edgeList = new ArrayList<Edge>();
-		ArrayList<IUVertex> vList = new ArrayList<IUVertex>();
-		
-		Graph(ArrayList<IUVertex> vList) {
-			this.vList = vList;
-		}
-		
-		void addEdge(IUVertex to, IUVertex from) {
-			// this assumes to and from are in vList
-			edgeList.add(new Edge(to, from, to.value, from.value));
-						
-			// increment incoming cost - save it in prev cost
-			to.prevSumInCost += from.value;
-			from.prevSumInCost += to.value;
-		}
-		
-		void doUpdate(Edge e, Edge.Node whichVertex) {
-			IUVertex i = e.getNode(whichVertex);
-			IUVertex j = e.getNode(whichVertex.getOpposite());
-			
-			final double outCost_iToj = e.getOutCost(whichVertex);	
-			// I'm going to use prevSumInCost because sumInCost = 0 initially here
-			// THIS UPDATE DOESNT WORK CORRECTLY - THE DIFFERENCE is that it updates
-			// per edge, then at end does vertex update. The other impl does all updates
-			// of edges for a single vertex together and updates that vertex's sumIncoming
-			// befor emoving to next vertex. That seems to give correct answer.
-			final double expInCost_jNoti = (j.getNumNeighbors() < 2) ? 0 :  
-				(j.prevSumInCost - outCost_iToj)/(double)(j.getNumNeighbors()-1);
-			final double outCost_jToi = j.value + expInCost_jNoti;
-			e.setOutCost(whichVertex.getOpposite(), outCost_jToi);
-
-			//i.sumInCost += outCost_jToi;
-			
-			if (logLevel.isTrickleEnabled()) {
-				printDebug(String.format("Setting: c_{%d -> %d}=%.1f", 
-						j.id, i.id, outCost_jToi));
-			}
-		}
-	}
-	
-	static Vertex runIterativeUpdateGraph(Graph graph) {
-		if (graph.vList.isEmpty())
-			throw new IllegalArgumentException("Graph is empty");
-		
-		// init done: outgoing costs and incoming costs were init'd in addEdge()
-		
-		boolean changed = true;
-		int iter = 1;
-		for (; changed && iter <= graph.vList.size()-1; iter++) 
-		{	
-			changed = false;
-			
-			// 2. updated outgoing costs for each edge
-			for (Edge e : graph.edgeList) {
-				// do left vertex first
-				graph.doUpdate(e, Edge.Node.LEFT);
-				graph.doUpdate(e, Edge.Node.RIGHT);
-			}
-			// 1. update sum of expected incoming costs for each vertex
-			for (Edge e : graph.edgeList) {
-				e.left.sumInCost += e.r2l;
-				e.right.sumInCost += e.l2r;
-			}
-			
-			for (IUVertex v : graph.vList) {
-				if (Math.abs(v.sumInCost - v.prevSumInCost) > 1e-6) {
-					changed = true; // at least one vertex has changed
-				}
-				v.prevSumInCost = v.sumInCost;
-				v.sumInCost = 0d;
-			}
-		}
-
-		// all done, now find the node with the minimum expected cost
-		if (logLevel.isDebugEnabled())
-			System.out.println("Converged: #iterations=" + iter);
-		Vertex minVertex = graph.vList.get(0); // init to some vertex
-		double minExpCost = Double.MAX_VALUE;
-		for (IUVertex vertex : graph.vList) {
-			final double expCost = 
-					vertex.value + vertex.sumInCost/(double)vertex.getNumNeighbors();
-			if (expCost < minExpCost) {
-				minExpCost = expCost;
-				minVertex = vertex;
-			}
-			
-			if (logLevel.isDebugEnabled())
-				printDebug("MinExpCost[" + vertex.id + "]=" + expCost);
-		}
-		
-		return minVertex;
-	}*/
-
 	/**
 	 * It executes this iterative update:
 	 * do #vertex-1 times or until unchanged:
 	 *   foreach vertex i:
 	 *   foreach edge (i,j):
-	 *   	 expInCost(i) += \sum_{j \in neighbor(i)} expOutCost(j, i)
+	 *   	 sumInCost(i) += \sum_{j \in neighbor(i)} expOutCost(j, i)
 	 *   
 	 *   foreach vertex i:
 	 *   foreach edge (i,j):
-	 *   	 expOutCost(j, i) <- value(j) + (expInCost(j) - expOutCost(i -> j))/(numNeighbor(j)-1)
+	 *   	 expOutCost(j, i) <- value(j) + (sumInCost(j) - expOutCost(i, j))/(numNeighbor(j)-1)
 	 * 
 	 * where:
 	 * expOutCost(j, i) is the expected outgoing cost from vertex j to vertex i
-	 * sumExpInCost(i) is the expected incoming cost into vertex i
-	 * numNeighbor(i) is the number of neigbors of vertex i
+	 * sumInCost(i) is the expected incoming cost into vertex i
+	 * neighbor(i) is the set of neighbors of vertex i and numNeighbor(i) is the number
 	 * 
-	 * @param vList list of R3Vertex
+	 * @param vList list of vertices
+	 * @return Vertex with minimum expected cost
 	 */
 	static Vertex runIterativeUpdate(final ArrayList<IUVertex> vList) {
 		if (vList.isEmpty())
@@ -404,15 +245,13 @@ public class RelatedQuestions {
 		return minVertex;
 	}
 	
-	
 	/**
 	 * Reads input from stdin in the format specified here: 
 	 * http://www.quora.com/challenges#related_questions
 	 */
-	public static void main(String[] args) {
+	private static void run(String[] mainArgs) {
 		Scanner stdin = new Scanner(new BufferedInputStream(System.in));
   	ArrayList<IUVertex> vList = new ArrayList<IUVertex>();
-  	//Graph graph = new Graph(vList);
   	
 		// first line: N = #vertices
   	int N = stdin.nextInt();
@@ -430,20 +269,21 @@ public class RelatedQuestions {
   		final IUVertex v1 = vList.get(vid1 - 1);
   		final IUVertex v2 = vList.get(vid2 - 1);
   		Vertex.addUndirectedEdge(v1, v2);
-  		//graph.addEdge(v1, v2);
   	}
 
     stdin.close();
-    
-    long startTime = System.currentTimeMillis();
+
     // done reading input, calculate answer
-    //Vertex minVertex = runDFS(vList, true);     // this is incorrect
-    //Vertex minVertex = runDFS(vList, false);    // this is 2nd fasstest
-    Vertex minVertex = runIterativeUpdate(vList); // this is fastest
-    //Vertex minVertex = runIterativeUpdateGraph(graph); // this is incorrect
+    long startTime = System.currentTimeMillis();
+    Vertex minVertex = runDFS(vList);    // this is 2nd fastest
+    //Vertex minVertex = runIterativeUpdate(vList); // this is fastest
     if (LOG.isDebugEnabled())
     	LOG.debug("Time=" + (System.currentTimeMillis() - startTime));
     
     System.out.println(minVertex.id);
+	}
+	
+	public static void main(String[] args) {
+		run(args);
 	}
 }
